@@ -15,6 +15,7 @@
 #include <bit.h>
 #include <timer.h>
 #include <stdio.h>
+#include <avr/eeprom.h>
 
 //--------Find GCD function --------------------------------------------------
 unsigned long int findGCD(unsigned long int a, unsigned long int b)
@@ -49,7 +50,7 @@ unsigned char playerAttack = 0; /* boolean flags */
 unsigned char enemyAttack = 0; /*  for checking if there is a projectile out already */
 unsigned char playerProjectilePosition = 0x00; //start from the player's position and move upward
 unsigned char enemyProjectilePosition = 0x00; //start from the enemy's position and move downwards
-unsigned char Score = 0x00; //score starts at 0, award 1 pt per kill
+unsigned char Score = 0x00; //score starts at 0, award 1 pt per hit
 unsigned char lives = 2; //start with 2 lives
 unsigned char enemyHP = 1; //1 hit to kill an enemy
 unsigned char select = 0x00; //start game in Menu, and shoot while in game
@@ -100,10 +101,10 @@ unsigned char enemyBeam[8] = {
 };
 
 //joystick threshholds from LEDs
-unsigned short up = 650; //800
-unsigned short down = 250; //200 
-unsigned short left = 250; //200
-unsigned short right = 650; //800
+unsigned short up = 800; //800
+unsigned short down = 200; //200 
+unsigned short left = 200; //200
+unsigned short right = 800; //800
 
 unsigned char inGame = 0x00; //check if still in game loop
 unsigned short adc_resultX = 0x0000; //joystick input
@@ -111,7 +112,7 @@ unsigned short adc_resultY = 0x0000;
 unsigned char menuCursor = 3;
 
 //user-defined FSMs
-enum gameStates {init, menu, gameLoop, showHighScores, victory, defeat};
+enum gameStates {init, menu, gameLoop, /*showHighScores,*/ victory, defeat};
 enum playerStates {move, updatePlayerLCD};
 enum playerProjectile {updatePlayerProjectile};
 enum enemyStates {spawn, calculateChoice, updateEnemyLCD};
@@ -127,7 +128,13 @@ int gameLogic(int state) {
 		break;
 		case menu:
 		Write7Seg('0' + '0');
-			if (select && menuCursor == 3) {
+			if (reset) {
+				state = init;
+				eeprom_write_byte((uint8_t*)10, (uint8_t) 0);
+				break;
+			}
+						
+			if (select) {
 				state = gameLoop;
 				LCD_ClearScreen();
 				inGame = 1;
@@ -135,6 +142,7 @@ int gameLogic(int state) {
 				LCD_WriteData(0x00);
 				break;
 			}
+			/*
 			else if (select && menuCursor == 19) {
 				state = showHighScores;
 				LCD_ClearScreen();
@@ -142,9 +150,11 @@ int gameLogic(int state) {
 				menuCursor = 3;
 				break;
 			}
+			*/
 			else {
 				state = menu;
 			}
+			/*
 			if (adc_resultX >= right) {
 			menuCursor = 3;
 			LCD_Cursor(menuCursor);
@@ -152,7 +162,8 @@ int gameLogic(int state) {
 			else if (adc_resultX <= left) {
 			menuCursor = 19;
 			LCD_Cursor(menuCursor);
-		}
+			}
+			*/
 		break;
 		case gameLoop:
 		if (reset) {
@@ -183,24 +194,38 @@ int gameLogic(int state) {
 		state = gameLoop;
 		}
 		break;
+		/*
 		case showHighScores:
 		if (select) {
 			state = init;
 		}
+		*/
 		break;
 		case victory:
 		if (select || reset) {
+			if (Score >= eeprom_read_byte((uint8_t*)10)) {
+				eeprom_write_byte((uint8_t*)10, (uint8_t) Score);
+			}
 			state = init;
 		}
 		else {
+			if (Score >= eeprom_read_byte((uint8_t*)10)) {
+				eeprom_write_byte((uint8_t*)10, (uint8_t) Score);
+			}			
 			state = victory;
 		}
 		break;
 		case defeat:
 		if (select || reset) {
+			if (Score >= eeprom_read_byte((uint8_t*)10)) {
+				eeprom_write_byte((uint8_t*)10, (uint8_t) Score);
+			}		
 			state = init;
 		}
 		else {
+			if (Score >= eeprom_read_byte((uint8_t*)10)) {
+				eeprom_write_byte((uint8_t*)10, (uint8_t) Score);
+			}	
 			state = victory;
 		}
 		break;
@@ -216,18 +241,21 @@ int gameLogic(int state) {
 		enemyProjectilePosition = 0x00; //start from the enemy's position and move downwards
 		playerAttack = 0;
 		enemyAttack = 0;
-		Score = 0x00; //high score starts at 0, award 1 pt per kill, award life per 2 points
+		Score = 0x00; //high score starts at 0, award 1 pt per hit
 		lives = 2; //start with 2 lives
 		enemyHP = 1; //1 hit to kill an enemy
 		select = 0x00;
 		inGame = 0x00; //check if still in game loop
 		adc_resultX = 0x0000; //joystick input horizontal
 		adc_resultY = 0x0000; //joystick input vertical
-		menuCursor = 3;
 		PORTB = 0x00;
 		LCD_ClearScreen();
-		LCD_DisplayString(1, "   START GAME      HIGH SCORES");
-		LCD_Cursor(menuCursor);
+		LCD_DisplayString(1, "   START GAME     HIGH SCORE:");
+		uint8_t highestScore;
+		highestScore = eeprom_read_byte((uint8_t*)10);
+		LCD_Cursor(30);
+		LCD_WriteData((char)highestScore + '0');
+		LCD_Cursor(40);
 		state = menu;
 		break;
 		case menu:
@@ -278,8 +306,10 @@ int gameLogic(int state) {
 		}
 		Write7Seg(Score);
 		break;
+		/*
 		case showHighScores:
 		break;
+		*/
 		case victory:
 		break;
 		case defeat:
@@ -482,17 +512,17 @@ int enemyLogic(int state) {
 					else {
 						if (randomNumber % 2 == 0) {
 							if (enemyPosition == 17 || enemyPosition == 18) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = enemyPosition - 16;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 1 || enemyPosition == 2) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);		
 								enemyPosition = enemyPosition + 16;
 								state = updateEnemyLCD;
@@ -500,33 +530,33 @@ int enemyLogic(int state) {
 						}
 						else if (randomNumber % 3 == 0) {
 							if (enemyPosition == 17) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = 2;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 18) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								enemyPosition = 1;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 1) {			
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								enemyPosition = 18;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 2) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								enemyPosition = 17;
 								state = updateEnemyLCD;
@@ -534,17 +564,17 @@ int enemyLogic(int state) {
 						}
 						else if (randomNumber % 5 == 0) {
 							if (enemyPosition == 2 || enemyPosition == 18) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								--enemyPosition;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 1 || enemyPosition == 17) {								
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								++enemyPosition;
 								state = updateEnemyLCD;
@@ -555,17 +585,17 @@ int enemyLogic(int state) {
 					else if (randomNumber >= 40 && enemyAttack) {
 						if (randomNumber % 2 == 0) {
 							if (enemyPosition >= 17) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = enemyPosition - 16;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition <= 2) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								enemyPosition = enemyPosition + 16;
 								state = updateEnemyLCD;
@@ -573,33 +603,33 @@ int enemyLogic(int state) {
 						}
 						else if (randomNumber % 3 == 0) {
 							if (enemyPosition == 17) {				
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = 2;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 18) {					
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = 1;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 1) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);
 								enemyPosition = 18;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 2) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								enemyPosition = 17;
 								state = updateEnemyLCD;
@@ -607,17 +637,17 @@ int enemyLogic(int state) {
 						}
 						else if (randomNumber % 5 == 0) {
 							if (enemyPosition == 2 || enemyPosition == 18) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								--enemyPosition;
 								state = updateEnemyLCD;
 							}
 							else if (enemyPosition == 1 || enemyPosition == 17) {
-								LCD_Cursor(playerPosition + 1);
+								LCD_Cursor(enemyPosition + 1);
 								LCD_WriteData(32);
-								LCD_Cursor(playerPosition - 1);
+								LCD_Cursor(enemyPosition - 1);
 								LCD_WriteData(32);								
 								++enemyPosition;
 								state = updateEnemyLCD;
@@ -631,18 +661,6 @@ int enemyLogic(int state) {
 		
 		case updateEnemyLCD:
 		if (inGame) {
-			LCD_Cursor(enemyPosition - 1);
-			LCD_WriteData(32);
-			LCD_Cursor(enemyPosition - 2);
-			LCD_WriteData(32);
-			LCD_Cursor(enemyPosition + 1);
-			LCD_WriteData(32);
-			LCD_Cursor(enemyPosition + 2);
-			LCD_WriteData(32);
-			LCD_Cursor(enemyPosition + 16);
-			LCD_WriteData(32);
-			LCD_Cursor(enemyPosition - 16);
-			LCD_WriteData(32);
 			LCD_Cursor(enemyPosition);
 			LCD_WriteData(0x01);
 			LCD_Cursor(40);
