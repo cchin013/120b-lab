@@ -11,9 +11,15 @@ If the player is hit by any enemy attacks, they will lose a life until they have
 Video demonstration: https://www.youtube.com/watch?v=DZfBRc9azjM&feature=youtu.be
 
 Hardware used:
+<p>
 1x ATMega1284p microcontroller
+  <br>
 1x 7-segment LED
+  <br>
 2x Push Buttons
+  <br>
 1x Parallax 2-axis Joystick
+  <br>
 1x 16x2 LCD Screen
+  <br>
 3x Green LEDs
